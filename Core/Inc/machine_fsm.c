@@ -8,25 +8,7 @@
 #include <stdint.h>
 
 
-/* ============================================================
- * TRANSITION MANAGEMENT
- * ============================================================ */
 
-StateMachineTransitionStatus StateMachineAddTransition(
-    StateMachineTransitionMap *map,
-    StateMachineTransition *rule
-)
-{
-    if (map->count >= map->capacity)
-    {
-        return STATE_MACHINE_TRANSITION_CAPACITY_FULL;
-    }
-
-    map->rules[map->count] = *rule;
-    map->count += 1;
-
-    return STATE_MACHINE_TRANSITION_ADDED;
-}
 
 
 /* ============================================================
@@ -165,6 +147,107 @@ StateMachineStatus StateMachinePushEvent(
     }
 
     return STATE_MACHINE_OK;
+}
+
+
+StateMachineStatus StateMachinePopEvent(
+    StateMachine *sm,
+    StateMachineEvent *event
+)
+{
+    if (sm == NULL || event == NULL) {
+        return STATE_MACHINE_INVALID_ARGUMENT;
+    }
+    EventQueueStatus status;
+    
+    status = EventQueuePop(&sm->highEventQueue, event);
+    if (status != EVENT_QUEUE_OK && status != EVENT_QUEUE_EMPTY) {
+        return STATE_MACHINE_ERROR_IN_QUEUE;
+    }
+    if (status == EVENT_QUEUE_EMPTY) {
+    
+        status = EventQueuePop(&sm->normalEventQueue, event);
+        if (status != EVENT_QUEUE_OK && status != EVENT_QUEUE_EMPTY) {
+            return STATE_MACHINE_ERROR_IN_QUEUE;
+        }
+    }
+    if (status == EVENT_QUEUE_EMPTY) {
+    
+        status = EventQueuePop(&sm->lowEventQueue, event);
+        if (status != EVENT_QUEUE_OK && status != EVENT_QUEUE_EMPTY) {
+            return STATE_MACHINE_ERROR_IN_QUEUE;
+        }
+    }
+
+    if (status == EVENT_QUEUE_EMPTY) {
+        return STATE_MACHINE_NO_EVENT;
+    }
+
+    return STATE_MACHINE_OK;
+
+}
+
+StateMachineTransitionStatus StateMachineAddTransition(
+    StateMachineTransitionMap *map,
+    const StateMachineTransition *rule
+)
+{
+    if (map == NULL || rule == NULL) {
+        return STATE_MACHINE_TRANSITION_INVALID_ARGUMENT;
+    }
+    if (map->rules == NULL)
+    {
+        return STATE_MACHINE_TRANSITION_INVALID_ARGUMENT;
+    }
+    if (map->count > map->capacity)
+    {
+        return STATE_MACHINE_TRANSITION_INVALID_ARGUMENT;
+    }
+    for (size_t i = 0; i < map->count; i++) {
+        if (map->rules[i].currentStateId == rule->currentStateId &&
+            map->rules[i].eventId == rule->eventId)
+        {
+            return STATE_MACHINE_TRANSITION_ALREADY_EXISTS;
+        }
+    }
+    if (map->count >= map->capacity)
+    {
+        return STATE_MACHINE_TRANSITION_CAPACITY_FULL;
+    }
+
+    map->rules[map->count] = *rule;
+    map->count++;
+
+    return STATE_MACHINE_TRANSITION_ADDED;
+}
+
+StateMachineFindStatus StateMachineFindTransition(
+    const StateMachineTransitionMap *map,
+    uint8_t currentStateId,
+    uint8_t eventId,
+    uint8_t *nextStateId
+)
+{
+    if (map == NULL || nextStateId == NULL) {
+        return STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT;
+    }
+    if (map->rules == NULL) {
+        return STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT;    
+    }
+    if (map->count > map->capacity)
+    {
+        return STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT;
+    }
+    for (size_t i = 0; i < map->count; i++) {
+        if (currentStateId == map->rules[i].currentStateId &&
+            eventId == map->rules[i].eventId)
+        {
+            *nextStateId = map->rules[i].nextStateId;
+            return STATE_MACHINE_TRANSITION_FOUND;
+        }
+    }
+
+    return  STATE_MACHINE_TRANSITION_NOT_FOUND;
 }
 
 

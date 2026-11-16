@@ -572,3 +572,527 @@ TestResult TestStateMachinePushEvent(void)
 
     return result;
 }
+
+
+
+/* ============================================================
+ * STATE MACHINE POP EVENT TESTS
+ * ============================================================ */
+
+TestResult TestStateMachinePopEvent(void)
+{
+    TestResult result = {0};
+
+    StateMachine sm;
+    StateMachineStatus status;
+    StateMachineEvent receivedEvent = {0};
+
+
+    /* ========================================================
+     * TEST 1 - INITIALIZE STATE MACHINE
+     * ======================================================== */
+
+    TestCheck(
+        &result,
+        StateMachineInitialize(&sm) == STATE_MACHINE_INIT_OK,
+        __LINE__
+    );
+
+    if (result.failed != 0)
+    {
+        return result;
+    }
+
+
+    /* ========================================================
+     * TEST 2 - INSERT EVENTS WITH MIXED PRIORITIES
+     * ======================================================== */
+
+    StateMachineEvent events[] = {
+        {.id = 1, .priority = LOW},
+        {.id = 2, .priority = HIGH},
+        {.id = 3, .priority = NORMAL},
+        {.id = 4, .priority = HIGH},
+        {.id = 5, .priority = LOW}
+    };
+
+    for (uint8_t i = 0; i < 5; ++i)
+    {
+        status = StateMachinePushEvent(&sm, &events[i]);
+
+        TestCheck(
+            &result,
+            status == STATE_MACHINE_OK,
+            __LINE__
+        );
+    }
+
+
+    /* ========================================================
+     * TEST 3 - VERIFY PRIORITY QUEUE COUNTS
+     * ======================================================== */
+
+    TestCheck(&result, sm.highEventQueue.count == 2, __LINE__);
+    TestCheck(&result, sm.normalEventQueue.count == 1, __LINE__);
+    TestCheck(&result, sm.lowEventQueue.count == 2, __LINE__);
+
+
+    /* ========================================================
+     * TEST 4 - VERIFY PRIORITY AND FIFO ORDER
+     * ======================================================== */
+
+    uint8_t expectedIds[] = {2, 4, 3, 1, 5};
+
+    for (uint8_t i = 0; i < 5; ++i)
+    {
+        status = StateMachinePopEvent(&sm, &receivedEvent);
+
+        TestCheck(
+            &result,
+            status == STATE_MACHINE_OK,
+            __LINE__
+        );
+
+        if (status == STATE_MACHINE_OK)
+        {
+            TestCheck(
+                &result,
+                receivedEvent.id == expectedIds[i],
+                __LINE__
+            );
+        }
+    }
+
+
+    /* ========================================================
+     * TEST 5 - VERIFY ALL QUEUES ARE EMPTY
+     * ======================================================== */
+
+    TestCheck(&result, sm.highEventQueue.count == 0, __LINE__);
+    TestCheck(&result, sm.normalEventQueue.count == 0, __LINE__);
+    TestCheck(&result, sm.lowEventQueue.count == 0, __LINE__);
+
+
+    /* ========================================================
+     * TEST 6 - POP WHEN ALL QUEUES ARE EMPTY
+     * ======================================================== */
+
+    status = StateMachinePopEvent(&sm, &receivedEvent);
+
+    TestCheck(
+        &result,
+        status == STATE_MACHINE_NO_EVENT,
+        __LINE__
+    );
+
+
+    /* ========================================================
+     * TEST 7 - NULL POINTER VALIDATION
+     * ======================================================== */
+
+    TestCheck(
+        &result,
+        StateMachinePopEvent(NULL, &receivedEvent)
+            == STATE_MACHINE_INVALID_ARGUMENT,
+        __LINE__
+    );
+
+    TestCheck(
+        &result,
+        StateMachinePopEvent(&sm, NULL)
+            == STATE_MACHINE_INVALID_ARGUMENT,
+        __LINE__
+    );
+
+    return result;
+}
+
+
+
+/* ============================================================
+ * STATE MACHINE TRANSITION TESTS
+ * ============================================================ */
+
+TestResult TestStateMachineAddTransition(void)
+{
+    TestResult result = {0};
+    StateMachineTransitionStatus status;
+
+    StateMachineTransition rules[3] = {0};
+
+    StateMachineTransitionMap map = {
+        .rules = rules,
+        .count = 0,
+        .capacity = 3
+    };
+
+
+    /* ========================================================
+     * TEST 1 - INITIAL TRANSITION MAP STATE
+     * ======================================================== */
+
+    TestCheck(&result, map.count == 0, __LINE__);
+    TestCheck(&result, map.capacity == 3, __LINE__);
+
+
+    /* ========================================================
+     * TEST 2 - ADD FIRST TRANSITION
+     * ======================================================== */
+
+    StateMachineTransition rule1 = {
+        .currentStateId = 1,
+        .eventId = 10,
+        .nextStateId = 2
+    };
+
+    status = StateMachineAddTransition(&map, &rule1);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_TRANSITION_ADDED,
+        __LINE__);
+
+    TestCheck(&result, map.count == 1, __LINE__);
+    TestCheck(&result, map.rules[0].currentStateId == 1, __LINE__);
+    TestCheck(&result, map.rules[0].eventId == 10, __LINE__);
+    TestCheck(&result, map.rules[0].nextStateId == 2, __LINE__);
+
+
+    /* ========================================================
+     * TEST 3 - REJECT DUPLICATE TRANSITION
+     * ======================================================== */
+
+    StateMachineTransition duplicateRule = {
+        .currentStateId = 1,
+        .eventId = 10,
+        .nextStateId = 3
+    };
+
+    status = StateMachineAddTransition(&map, &duplicateRule);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_TRANSITION_ALREADY_EXISTS,
+        __LINE__);
+
+    TestCheck(&result, map.count == 1, __LINE__);
+
+
+    /* ========================================================
+     * TEST 4 - SAME EVENT FROM DIFFERENT STATE
+     * ======================================================== */
+
+    StateMachineTransition rule2 = {
+        .currentStateId = 2,
+        .eventId = 10,
+        .nextStateId = 1
+    };
+
+    status = StateMachineAddTransition(&map, &rule2);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_TRANSITION_ADDED,
+        __LINE__);
+
+    TestCheck(&result, map.count == 2, __LINE__);
+
+
+    /* ========================================================
+     * TEST 5 - SAME STATE WITH DIFFERENT EVENT
+     * ======================================================== */
+
+    StateMachineTransition rule3 = {
+        .currentStateId = 1,
+        .eventId = 11,
+        .nextStateId = 3
+    };
+
+    status = StateMachineAddTransition(&map, &rule3);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_TRANSITION_ADDED,
+        __LINE__);
+
+    TestCheck(&result, map.count == 3, __LINE__);
+
+
+    /* ========================================================
+     * TEST 6 - REJECT TRANSITION WHEN MAP IS FULL
+     * ======================================================== */
+
+    StateMachineTransition extraRule = {
+        .currentStateId = 3,
+        .eventId = 12,
+        .nextStateId = 1
+    };
+
+    status = StateMachineAddTransition(&map, &extraRule);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_TRANSITION_CAPACITY_FULL,
+        __LINE__);
+
+    TestCheck(&result, map.count == 3, __LINE__);
+
+
+    /* ========================================================
+     * TEST 7 - NULL POINTER VALIDATION
+     * ======================================================== */
+
+    TestCheck(&result,
+        StateMachineAddTransition(NULL, &rule1)
+            == STATE_MACHINE_TRANSITION_INVALID_ARGUMENT,
+        __LINE__);
+
+    TestCheck(&result,
+        StateMachineAddTransition(&map, NULL)
+            == STATE_MACHINE_TRANSITION_INVALID_ARGUMENT,
+        __LINE__);
+
+    StateMachineTransitionMap invalidMap = {
+        .rules = NULL,
+        .count = 0,
+        .capacity = 3
+    };
+
+    TestCheck(&result,
+        StateMachineAddTransition(&invalidMap, &rule1)
+            == STATE_MACHINE_TRANSITION_INVALID_ARGUMENT,
+        __LINE__);
+
+
+    /* ========================================================
+     * TEST 8 - VERIFY TRANSITIONS ARE COPIED BY VALUE
+     * ======================================================== */
+
+    rule1.nextStateId = 99;
+
+    TestCheck(&result,
+        map.rules[0].nextStateId == 2,
+        __LINE__);
+
+
+    return result;
+}
+
+
+
+/* ============================================================
+ * STATE MACHINE FIND TRANSITION TESTS
+ * ============================================================ */
+
+TestResult TestStateMachineFindTransition(void)
+{
+    TestResult result = {0};
+    StateMachineFindStatus status;
+    uint8_t nextStateId = 0;
+
+    StateMachineTransition rules[3] = {0};
+
+    StateMachineTransitionMap map = {
+        .rules = rules,
+        .count = 0,
+        .capacity = 3
+    };
+
+
+    /* ========================================================
+     * TEST 1 - INITIALIZE TRANSITION MAP
+     * ======================================================== */
+
+    StateMachineTransition rule1 = {
+        .currentStateId = 1,
+        .eventId = 10,
+        .nextStateId = 2
+    };
+
+    StateMachineTransition rule2 = {
+        .currentStateId = 2,
+        .eventId = 10,
+        .nextStateId = 3
+    };
+
+    TestCheck(
+        &result,
+        StateMachineAddTransition(&map, &rule1)
+            == STATE_MACHINE_TRANSITION_ADDED,
+        __LINE__
+    );
+
+    TestCheck(
+        &result,
+        StateMachineAddTransition(&map, &rule2)
+            == STATE_MACHINE_TRANSITION_ADDED,
+        __LINE__
+    );
+
+    if (result.failed != 0)
+    {
+        return result;
+    }
+
+
+    /* ========================================================
+     * TEST 2 - FIND FIRST TRANSITION
+     * ======================================================== */
+
+    nextStateId = 0;
+
+    status = StateMachineFindTransition(
+        &map, 1, 10, &nextStateId
+    );
+
+    TestCheck(
+        &result,
+        status == STATE_MACHINE_TRANSITION_FOUND,
+        __LINE__
+    );
+
+    TestCheck(&result, nextStateId == 2, __LINE__);
+
+
+    /* ========================================================
+     * TEST 3 - FIND SECOND TRANSITION
+     * ======================================================== */
+
+    nextStateId = 0;
+
+    status = StateMachineFindTransition(
+        &map, 2, 10, &nextStateId
+    );
+
+    TestCheck(
+        &result,
+        status == STATE_MACHINE_TRANSITION_FOUND,
+        __LINE__
+    );
+
+    TestCheck(&result, nextStateId == 3, __LINE__);
+
+
+    /* ========================================================
+     * TEST 4 - UNKNOWN EVENT ID
+     * ======================================================== */
+
+    nextStateId = 99;
+
+    status = StateMachineFindTransition(
+        &map, 1, 11, &nextStateId
+    );
+
+    TestCheck(
+        &result,
+        status == STATE_MACHINE_TRANSITION_NOT_FOUND,
+        __LINE__
+    );
+
+    TestCheck(&result, nextStateId == 99, __LINE__);
+
+
+    /* ========================================================
+     * TEST 5 - UNKNOWN STATE ID
+     * ======================================================== */
+
+    nextStateId = 99;
+
+    status = StateMachineFindTransition(
+        &map, 5, 10, &nextStateId
+    );
+
+    TestCheck(
+        &result,
+        status == STATE_MACHINE_TRANSITION_NOT_FOUND,
+        __LINE__
+    );
+
+    TestCheck(&result, nextStateId == 99, __LINE__);
+
+
+    /* ========================================================
+     * TEST 6 - EMPTY TRANSITION MAP
+     * ======================================================== */
+
+    StateMachineTransitionMap emptyMap = {
+        .rules = rules,
+        .count = 0,
+        .capacity = 3
+    };
+
+    nextStateId = 99;
+
+    status = StateMachineFindTransition(
+        &emptyMap, 1, 10, &nextStateId
+    );
+
+    TestCheck(
+        &result,
+        status == STATE_MACHINE_TRANSITION_NOT_FOUND,
+        __LINE__
+    );
+
+    TestCheck(&result, nextStateId == 99, __LINE__);
+
+
+    /* ========================================================
+     * TEST 7 - NULL POINTER VALIDATION
+     * ======================================================== */
+
+    TestCheck(
+        &result,
+        StateMachineFindTransition(NULL, 1, 10, &nextStateId)
+            == STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT,
+        __LINE__
+    );
+
+    TestCheck(
+        &result,
+        StateMachineFindTransition(&map, 1, 10, NULL)
+            == STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT,
+        __LINE__
+    );
+
+
+    /* ========================================================
+     * TEST 8 - NULL TRANSITION ARRAY
+     * ======================================================== */
+
+    StateMachineTransitionMap invalidMap = {
+        .rules = NULL,
+        .count = 0,
+        .capacity = 3
+    };
+
+    TestCheck(
+        &result,
+        StateMachineFindTransition(&invalidMap, 1, 10, &nextStateId)
+            == STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT,
+        __LINE__
+    );
+
+
+    /* ========================================================
+     * TEST 9 - INVALID TRANSITION MAP COUNT
+     * ======================================================== */
+
+    StateMachineTransitionMap corruptedMap = {
+        .rules = rules,
+        .count = 4,
+        .capacity = 3
+    };
+
+    nextStateId = 99;
+
+    status = StateMachineFindTransition(
+        &corruptedMap, 1, 10, &nextStateId
+    );
+
+    TestCheck(
+        &result,
+        status == STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT,
+        __LINE__
+    );
+
+    TestCheck(&result, nextStateId == 99, __LINE__);
+
+
+    return result;
+}
+

@@ -65,10 +65,9 @@ typedef struct StateMachineState
 
 typedef struct StateMachineTransition
 {
-    StateMachineState currentState;
-    StateMachineEvent event;
-    StateMachineState nextState;
-
+    uint8_t currentStateId;
+    uint8_t eventId;
+    uint8_t nextStateId;
 } StateMachineTransition;
 
 
@@ -79,7 +78,9 @@ typedef struct StateMachineTransition
 typedef enum
 {
     STATE_MACHINE_TRANSITION_ADDED,
-    STATE_MACHINE_TRANSITION_CAPACITY_FULL
+    STATE_MACHINE_TRANSITION_CAPACITY_FULL,
+    STATE_MACHINE_TRANSITION_INVALID_ARGUMENT,
+    STATE_MACHINE_TRANSITION_ALREADY_EXISTS
 
 } StateMachineTransitionStatus;
 
@@ -152,7 +153,9 @@ typedef enum
     STATE_MACHINE_INIT_ERROR,
     STATE_MACHINE_INVALID_ARGUMENT,
     STATE_MACHINE_QUEUE_FULL,
-    STATE_MACHINE_INVALID_PRIORITY
+    STATE_MACHINE_INVALID_PRIORITY,
+    STATE_MACHINE_NO_EVENT,
+    STATE_MACHINE_ERROR_IN_QUEUE
 
 } StateMachineStatus;
 
@@ -175,7 +178,7 @@ struct StateMachine
 
 StateMachineTransitionStatus StateMachineAddTransition(
     StateMachineTransitionMap *map,
-    StateMachineTransition *rule
+    const StateMachineTransition *rule
 );
 
 StateMachineStatus StateMachineInitialize(
@@ -187,6 +190,27 @@ StateMachineStatus StateMachinePushEvent(
     StateMachine *sm,
     const StateMachineEvent *event
 );
+
+StateMachineStatus StateMachinePopEvent(
+    StateMachine *sm,
+    StateMachineEvent *event
+);
+
+
+typedef enum
+{
+    STATE_MACHINE_TRANSITION_FOUND,
+    STATE_MACHINE_TRANSITION_NOT_FOUND,
+    STATE_MACHINE_TRANSITION_FIND_INVALID_ARGUMENT
+} StateMachineFindStatus;
+
+StateMachineFindStatus StateMachineFindTransition(
+    const StateMachineTransitionMap *map,
+    uint8_t currentStateId,
+    uint8_t eventId,
+    uint8_t *nextStateId
+);
+
 
 
 #endif

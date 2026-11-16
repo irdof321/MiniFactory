@@ -27,4 +27,10 @@ TestResult TestStateMachineInitialize(void);
 
 TestResult TestStateMachinePushEvent(void);
 
+TestResult TestStateMachinePopEvent(void);
+
+TestResult TestStateMachineAddTransition(void);
+
+TestResult TestStateMachineFindTransition(void);
+
 #endif

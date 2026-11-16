@@ -99,6 +99,12 @@ volatile TestResult queueTest = TestEventQueue();
 volatile TestResult initTest = TestStateMachineInitialize();
 
 volatile TestResult pushTest = TestStateMachinePushEvent();
+
+volatile TestResult popTest = TestStateMachinePopEvent();
+
+volatile TestResult transitionTest = TestStateMachineAddTransition();
+
+volatile TestResult findTransitionTest = TestStateMachineFindTransition();
   /* USER CODE END 2 */
 
   /* Init scheduler */
