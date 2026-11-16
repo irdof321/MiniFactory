@@ -53,3 +53,24 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# CMake build directories
+/build/
+
+# Build outputs
+/build/
+
+# Local IDE settings
+/.settings/
+
+# Temporary files
+/git-status.txt
+
+# Unused CMSIS components
+/Drivers/CMSIS/DSP/
+/Drivers/CMSIS/NN/
+/Drivers/CMSIS/DAP/
+/Drivers/CMSIS/Core_A/
+
+# Unused IAR project
+/EWARM/
