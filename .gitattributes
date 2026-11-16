@@ -1,0 +1,6 @@
+# Third-party libraries
+Drivers/** linguist-vendored
+Middlewares/** linguist-vendored
+
+# Generated files
+cmake/stm32cubemx/** linguist-generated
