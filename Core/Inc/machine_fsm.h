@@ -164,11 +164,25 @@ typedef enum
  * STATE MACHINE
  * ============================================================ */
 
+typedef struct StateMachineDefinition
+{
+    const StateMachineState *states;
+    size_t stateCount;
+
+    const StateMachineTransitionMap *transitionMap;
+
+    uint8_t initialStateId;
+} StateMachineDefinition;
+
 struct StateMachine
 {
-    struct EventQueue highEventQueue;
-    struct EventQueue normalEventQueue;
-    struct EventQueue lowEventQueue;
+    const StateMachineDefinition *definition;
+
+    uint8_t currentStateId;
+
+    EventQueue highEventQueue;
+    EventQueue normalEventQueue;
+    EventQueue lowEventQueue;
 };
 
 
@@ -182,7 +196,8 @@ StateMachineTransitionStatus StateMachineAddTransition(
 );
 
 StateMachineStatus StateMachineInitialize(
-    StateMachine *sm
+    StateMachine *sm,
+    const StateMachineDefinition *definition
 );
 
 
@@ -210,6 +225,7 @@ StateMachineFindStatus StateMachineFindTransition(
     uint8_t eventId,
     uint8_t *nextStateId
 );
+
 
 
 

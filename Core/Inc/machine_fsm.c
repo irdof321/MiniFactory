@@ -84,11 +84,35 @@ EventQueueStatus EventQueueInit(EventQueue *queue)
  * STATE MACHINE - INITIALIZATION
  * ============================================================ */
 
-StateMachineStatus StateMachineInitialize(StateMachine *sm)
+StateMachineStatus StateMachineInitialize(
+    StateMachine *sm,
+    const StateMachineDefinition *definition
+)
 {
-    if (sm == NULL) {
+    if (sm == NULL || definition == NULL) {
         return STATE_MACHINE_INVALID_ARGUMENT;
     }
+    if (definition->states == NULL || definition->transitionMap == NULL) {
+        return STATE_MACHINE_INVALID_ARGUMENT;    
+    }
+    if (definition->transitionMap->count >
+        definition->transitionMap->capacity)
+    {
+        return STATE_MACHINE_INVALID_ARGUMENT;
+    }
+    uint8_t initial_state_found = 0;
+    for (size_t i = 0; i < definition->stateCount; i++) {
+        if(definition->initialStateId == definition->states[i].id)
+        {
+            initial_state_found = 1;
+            break;
+        }
+    }
+    if (initial_state_found == 0) {
+        return STATE_MACHINE_INVALID_ARGUMENT;
+    }
+    sm->definition = definition;
+    sm->currentStateId = definition->initialStateId;
 
     EventQueueStatus status;
     status = EventQueueInit(&sm->highEventQueue);

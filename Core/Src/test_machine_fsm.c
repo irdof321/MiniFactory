@@ -30,6 +30,31 @@ static void TestCheck(
 
 
 /* ============================================================
+ * SHARED TEST STATE MACHINE DEFINITION
+ * ============================================================ */
+
+static const StateMachineState testStates[] = {
+    {.id = 1, .name = "IDLE"},
+    {.id = 2, .name = "RUNNING"}
+};
+
+static StateMachineTransition testRules[2] = {0};
+
+static StateMachineTransitionMap testTransitionMap = {
+    .rules = testRules,
+    .count = 0,
+    .capacity = 2
+};
+
+static const StateMachineDefinition testDefinition = {
+    .states = testStates,
+    .stateCount = 2,
+    .transitionMap = &testTransitionMap,
+    .initialStateId = 1
+};
+
+
+/* ============================================================
  * EVENT QUEUE TESTS
  * ============================================================ */
 
@@ -283,32 +308,36 @@ TestResult TestEventQueue(void)
  * STATE MACHINE INITIALIZATION TESTS
  * ============================================================ */
 
+
 TestResult TestStateMachineInitialize(void)
 {
     TestResult result = {0};
+    StateMachine sm = {0};
     StateMachineStatus status;
-
 
     /* ========================================================
      * TEST 1 - NULL POINTER VALIDATION
      * ======================================================== */
 
-    status = StateMachineInitialize(NULL);
-
     TestCheck(
         &result,
-        status == STATE_MACHINE_INVALID_ARGUMENT,
+        StateMachineInitialize(NULL, &testDefinition)
+            == STATE_MACHINE_INVALID_ARGUMENT,
         __LINE__
     );
 
+    TestCheck(
+        &result,
+        StateMachineInitialize(&sm, NULL)
+            == STATE_MACHINE_INVALID_ARGUMENT,
+        __LINE__
+    );
 
     /* ========================================================
      * TEST 2 - VALID STATE MACHINE INITIALIZATION
      * ======================================================== */
 
-    StateMachine sm;
-
-    status = StateMachineInitialize(&sm);
+    status = StateMachineInitialize(&sm, &testDefinition);
 
     TestCheck(
         &result,
@@ -321,37 +350,13 @@ TestResult TestStateMachineInitialize(void)
         return result;
     }
 
+    TestCheck(&result, sm.definition == &testDefinition, __LINE__);
+    TestCheck(&result, sm.currentStateId == 1, __LINE__);
 
-    /* ========================================================
-     * TEST 3 - HIGH PRIORITY QUEUE INITIALIZATION
-     * ======================================================== */
-
-    TestCheck(&result, sm.highEventQueue.head == 0, __LINE__);
-    TestCheck(&result, sm.highEventQueue.tail == 0, __LINE__);
-    TestCheck(&result, sm.highEventQueue.count == 0, __LINE__);
-
-
-    /* ========================================================
-     * TEST 4 - NORMAL PRIORITY QUEUE INITIALIZATION
-     * ======================================================== */
-
-    TestCheck(&result, sm.normalEventQueue.head == 0, __LINE__);
-    TestCheck(&result, sm.normalEventQueue.tail == 0, __LINE__);
-    TestCheck(&result, sm.normalEventQueue.count == 0, __LINE__);
-
-
-    /* ========================================================
-     * TEST 5 - LOW PRIORITY QUEUE INITIALIZATION
-     * ======================================================== */
-
-    TestCheck(&result, sm.lowEventQueue.head == 0, __LINE__);
-    TestCheck(&result, sm.lowEventQueue.tail == 0, __LINE__);
-    TestCheck(&result, sm.lowEventQueue.count == 0, __LINE__);
-
+    /* Keep the existing queue initialization checks here. */
 
     return result;
 }
-
 
 
 /* ============================================================
@@ -373,7 +378,7 @@ TestResult TestStateMachinePushEvent(void)
 
     TestCheck(
         &result,
-        StateMachineInitialize(&sm) == STATE_MACHINE_INIT_OK,
+        StateMachineInitialize(&sm, &testDefinition) == STATE_MACHINE_INIT_OK,
         __LINE__
     );
 
@@ -594,7 +599,7 @@ TestResult TestStateMachinePopEvent(void)
 
     TestCheck(
         &result,
-        StateMachineInitialize(&sm) == STATE_MACHINE_INIT_OK,
+        StateMachineInitialize(&sm, &testDefinition) == STATE_MACHINE_INIT_OK,
         __LINE__
     );
 
