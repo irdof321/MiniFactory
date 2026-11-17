@@ -55,6 +55,47 @@ static const StateMachineDefinition testDefinition = {
 
 
 /* ============================================================
+ * STATE MACHINE START TEST CALLBACKS
+ * ============================================================ */
+
+static uint32_t startEnterCount = 0;
+static uint32_t startUpdateCount = 0;
+static uint32_t startExitCount = 0;
+
+static StateMachine *startCallbackInstance = NULL;
+static bool startCallbackEventWasNull = false;
+
+static void TestStartOnEnter(
+    StateMachine *sm,
+    const StateMachineEvent *event
+)
+{
+    startEnterCount++;
+    startCallbackInstance = sm;
+    startCallbackEventWasNull = (event == NULL);
+}
+
+static void TestStartOnUpdate(
+    StateMachine *sm,
+    const StateMachineEvent *event
+)
+{
+    (void)sm;
+    (void)event;
+    startUpdateCount++;
+}
+
+static void TestStartOnExit(
+    StateMachine *sm,
+    const StateMachineEvent *event
+)
+{
+    (void)sm;
+    (void)event;
+    startExitCount++;
+}
+
+/* ============================================================
  * EVENT QUEUE TESTS
  * ============================================================ */
 
@@ -1101,3 +1142,232 @@ TestResult TestStateMachineFindTransition(void)
     return result;
 }
 
+
+/* ============================================================
+ * STATE MACHINE START TESTS
+ * ============================================================ */
+
+TestResult TestStateMachineStart(void)
+{
+    TestResult result = {0};
+    StateMachineStatus status;
+
+    startEnterCount = 0;
+    startUpdateCount = 0;
+    startExitCount = 0;
+    startCallbackInstance = NULL;
+    startCallbackEventWasNull = false;
+
+    const StateMachineState states[] = {
+        {
+            .id = 1,
+            .name = "IDLE",
+            .onEnter = TestStartOnEnter,
+            .onUpdate = TestStartOnUpdate,
+            .onExit = TestStartOnExit
+        },
+        {
+            .id = 2,
+            .name = "RUNNING"
+        }
+    };
+
+    StateMachineTransition rules[1] = {0};
+
+    StateMachineTransitionMap map = {
+        .rules = rules,
+        .count = 0,
+        .capacity = 1
+    };
+
+    const StateMachineDefinition definition = {
+        .states = states,
+        .stateCount = 2,
+        .transitionMap = &map,
+        .initialStateId = 1
+    };
+
+    StateMachine sm = {0};
+
+    /* ========================================================
+     * TEST 1 - INITIALIZE STATE MACHINE
+     * ======================================================== */
+
+    status = StateMachineInitialize(&sm, &definition);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_INIT_OK, __LINE__);
+
+    if (status != STATE_MACHINE_INIT_OK)
+    {
+        return result;
+    }
+
+    TestCheck(&result,
+        sm.lifecycle == STATE_MACHINE_LIFECYCLE_INITIALIZED,
+        __LINE__);
+
+    TestCheck(&result, sm.currentStateId == 1, __LINE__);
+
+
+    /* ========================================================
+     * TEST 2 - QUEUE EVENT BEFORE START
+     * ======================================================== */
+
+    StateMachineEvent event = {
+        .id = 10,
+        .priority = HIGH
+    };
+
+    TestCheck(&result,
+        StateMachinePushEvent(&sm, &event) == STATE_MACHINE_OK,
+        __LINE__);
+
+
+    /* ========================================================
+     * TEST 3 - START STATE MACHINE
+     * ======================================================== */
+
+    status = StateMachineStart(&sm);
+
+    TestCheck(&result, status == STATE_MACHINE_OK, __LINE__);
+
+    TestCheck(&result,
+        sm.lifecycle == STATE_MACHINE_LIFECYCLE_RUNNING,
+        __LINE__);
+
+    TestCheck(&result, startEnterCount == 1, __LINE__);
+    TestCheck(&result, startCallbackInstance == &sm, __LINE__);
+    TestCheck(&result, startCallbackEventWasNull, __LINE__);
+
+    TestCheck(&result, startUpdateCount == 0, __LINE__);
+    TestCheck(&result, startExitCount == 0, __LINE__);
+
+    TestCheck(&result,
+        sm.highEventQueue.count == 1,
+        __LINE__);
+
+
+    /* ========================================================
+     * TEST 4 - REJECT SECOND START
+     * ======================================================== */
+
+    status = StateMachineStart(&sm);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_INVALID_LIFECYCLE,
+        __LINE__);
+
+    TestCheck(&result, startEnterCount == 1, __LINE__);
+
+
+    /* ========================================================
+     * TEST 5 - NULL POINTER VALIDATION
+     * ======================================================== */
+
+    TestCheck(&result,
+        StateMachineStart(NULL) == STATE_MACHINE_INVALID_ARGUMENT,
+        __LINE__);
+
+    StateMachine invalidSm = {0};
+
+    TestCheck(&result,
+        StateMachineStart(&invalidSm) == STATE_MACHINE_INVALID_ARGUMENT,
+        __LINE__);
+
+
+    /* ========================================================
+     * TEST 6 - INVALID LIFECYCLE
+     * ======================================================== */
+
+    sm.lifecycle = STATE_MACHINE_LIFECYCLE_PAUSED;
+
+    TestCheck(&result,
+        StateMachineStart(&sm) == STATE_MACHINE_INVALID_LIFECYCLE,
+        __LINE__);
+
+    TestCheck(&result, startEnterCount == 1, __LINE__);
+
+    sm.lifecycle = STATE_MACHINE_LIFECYCLE_STOPPED;
+
+    TestCheck(&result,
+        StateMachineStart(&sm) == STATE_MACHINE_INVALID_LIFECYCLE,
+        __LINE__);
+
+
+    /* ========================================================
+     * TEST 7 - STATE WITHOUT CALLBACK
+     * ======================================================== */
+
+    const StateMachineDefinition silentDefinition = {
+        .states = states,
+        .stateCount = 2,
+        .transitionMap = &map,
+        .initialStateId = 2
+    };
+
+    StateMachine silentSm = {0};
+
+    status = StateMachineInitialize(&silentSm, &silentDefinition);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_INIT_OK,
+        __LINE__);
+
+    if (status == STATE_MACHINE_INIT_OK)
+    {
+        status = StateMachineStart(&silentSm);
+
+        TestCheck(&result,
+            status == STATE_MACHINE_OK,
+            __LINE__);
+
+        TestCheck(&result,
+            silentSm.lifecycle == STATE_MACHINE_LIFECYCLE_RUNNING,
+            __LINE__);
+
+        TestCheck(&result, startEnterCount == 1, __LINE__);
+    }
+
+
+    /* ========================================================
+     * TEST 8 - INITIAL STATE NOT FOUND
+     * ======================================================== */
+
+    StateMachineDefinition missingDefinition = definition;
+    missingDefinition.initialStateId = 99;
+
+    StateMachine missingSm = {0};
+    missingSm.definition = &missingDefinition;
+    missingSm.currentStateId = 99;
+    missingSm.lifecycle = STATE_MACHINE_LIFECYCLE_INITIALIZED;
+
+    status = StateMachineStart(&missingSm);
+
+    TestCheck(&result,
+        status == STATE_MACHINE_STATE_NOT_FOUND,
+        __LINE__);
+
+    TestCheck(&result,
+        missingSm.lifecycle == STATE_MACHINE_LIFECYCLE_INITIALIZED,
+        __LINE__);
+
+
+    /* ========================================================
+     * TEST 9 - EMPTY STATE DEFINITION
+     * ======================================================== */
+
+    StateMachineDefinition emptyDefinition = definition;
+    emptyDefinition.stateCount = 0;
+
+    StateMachine emptySm = {0};
+    emptySm.definition = &emptyDefinition;
+    emptySm.lifecycle = STATE_MACHINE_LIFECYCLE_INITIALIZED;
+
+    TestCheck(&result,
+        StateMachineStart(&emptySm) == STATE_MACHINE_INVALID_ARGUMENT,
+        __LINE__);
+
+
+    return result;
+}

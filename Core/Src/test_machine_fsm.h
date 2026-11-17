@@ -33,4 +33,6 @@ TestResult TestStateMachineAddTransition(void);
 
 TestResult TestStateMachineFindTransition(void);
 
+TestResult TestStateMachineStart(void);
+
 #endif

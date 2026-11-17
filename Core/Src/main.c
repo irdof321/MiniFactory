@@ -105,6 +105,8 @@ volatile TestResult popTest = TestStateMachinePopEvent();
 volatile TestResult transitionTest = TestStateMachineAddTransition();
 
 volatile TestResult findTransitionTest = TestStateMachineFindTransition();
+
+volatile TestResult startTest = TestStateMachineStart();
   /* USER CODE END 2 */
 
   /* Init scheduler */
