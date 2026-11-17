@@ -25,24 +25,6 @@ static const StateMachineState *StateMachineFindState(
     return NULL;
 }
 
-/* Second identical helper definition retained unchanged from the supplied source. */
-static const StateMachineState *StateMachineFindState(
-    const StateMachineDefinition *definition,
-    uint8_t stateId
-)
-{
-    if (definition == NULL || definition->states == NULL) {
-        return NULL;
-    }
-
-    for (size_t i = 0; i < definition->stateCount; i++) {
-        if (stateId == definition->states[i].id) {
-            return &definition->states[i];
-        }
-    }
-
-    return NULL;
-}
 
 /* ============================================================
  * EVENT QUEUE OPERATIONS
